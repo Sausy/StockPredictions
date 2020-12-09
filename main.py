@@ -106,6 +106,7 @@ def main():
 
     print("\n===========================================================")
     print("Create Time Shifted data\n")
+    print("Data will be shaped acording to tensor flows [batch, time, features] ... windows")
     #because oure model needs knowlege into the past
     #it needs to be defined what features shall be "time shifted"
     LabelList = ["Open","High","Low","Close"]

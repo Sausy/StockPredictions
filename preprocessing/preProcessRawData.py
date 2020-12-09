@@ -13,8 +13,10 @@ import pandas as pd
 
 #import ../CSV/invert
 
-from .common import preTools
-
+if __name__ == "__main__":
+    from common import preTools
+else:
+    from .common import preTools
 
 class preprocessing:
     def __init__(self,ticksIntoPast=50,ticksIntoFuture=1, debug=False, scaling='minmax'):
@@ -171,7 +173,7 @@ class preprocessing:
     #===========================================================
     def genForcastY(self,x,LabelList=["Open","High","Close"],featureList=["Open","High","Close"],includeAllFuturDays=False):
         #====== Get Time Shifted DATA ====
-        print("\n\ngenerate timeshifted Y outputs\n==============")
+        print("\n==============\ngenerate timeshifted Y outputs\n")
         #print(len(LabelList))
         deltaT = self.ticksIntoPast + self.ticksIntoFuture
 
@@ -182,9 +184,9 @@ class preprocessing:
         yLength = x.shape[0] - 1
         print("yLength..{}".format(yLength))
 
-        print("\n\nY init with X data but t+1 shift\n==============")
+        print("\n==============\nY init with X data but t+1 shift\n")
         y = x[LabelList][1:].values
-        #print("\n\nY one tick ahead\n==============")
+        #print("\n==============\nY one tick ahead\n")
         #print(y)
 
         if self.ticksIntoFuture > 1:
@@ -192,22 +194,26 @@ class preprocessing:
                 yLength = yLength - 1
                 y = np.append(y[:yLength],y[1:(yLength+1)],axis=1)
 
-        #print("\n\nY loop\n==============")
+        #print("\n==============\nY loop\n")
         #print(y)
 
                 #y = y[:yLength]
 
-        print("Optional Label Reduction to only forcast event {}Ticks into the future".format(self.ticksIntoFuture))
+        print("\n==============\nOptional:\nInclude all t+n events as additional label")
+        print("or only [t+{}] feature".format(self.ticksIntoFuture))
+        print("[OptionalFeature]: {}".format(includeAllFuturDays))
+
         if includeAllFuturDays == False:
             y = y[:,y.shape[1]-len(LabelList):]
 
 
-        print("resulting Y ...")
+        print("\n==============\nResulting Y based on time shifted X\n")
         print(y)
 
-        print("reduction of X...")
-
-        #x = x[featureList][:y.shape[0]].values
+        #Reduction of X is necesary, because
+        #Y(t) = X(t+ticksIntoFuture)
+        print("\n\nreduction of X...\nbecause Y(t) = X(t+ticksIntoFuture)\n")
+        x = x[featureList][:y.shape[0]].values
         print("Size of x {}".format(x.shape))
         #print(x)
 
@@ -338,6 +344,7 @@ class preprocessing:
         print("import add the transaction fee and a time windows of 3min till an transaction is placed")
         print("also consider amount of transactions per day and month")
 
+
 def main():
     print('=============\nSandbox: preProcessRawData.py')
 
@@ -357,7 +364,7 @@ def main():
     # Basic Parameters
     #===========================================================
     TicksIntoFuture = 1
-    TicksIntoPast = 54 #8days => 8[day]*24[std/day] = 192[std]
+    TicksIntoPast = 4 #8days => 8[day]*24[std/day] = 192[std]
     ##the present is not included into this value hence TicksIntoPast can be 0
     #and the batch size is TicksIntoPast+1
     pp = preprocessing(ticksIntoPast=TicksIntoPast,ticksIntoFuture=TicksIntoFuture, debug=True)
@@ -407,6 +414,18 @@ def main():
 
 
 
+
+    print("\n===========================================================")
+    print("Create Time Shifted data\n")
+    #because oure model needs knowlege into the past
+    #it needs to be defined what features shall be "time shifted"
+    LabelList = ["Open","High","Low","Close"]
+    [data,y] = pp.genForcastY(data, LabelList=LabelList, includeAllFuturDays=False)
+    print(data)
+    [data,y] = pp.genTimeSeries(data,y)
+
+    print (data)
+    print (y)
 
 
     #===========================================================
