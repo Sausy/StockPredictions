@@ -84,10 +84,11 @@ class indicators:
                 print("\n========\nCalc SMA\n")
                 ret["sma10"] = self.SimpleMovingAverage(price,10)
                 ret["sma100"] = self.SimpleMovingAverage(price,100)
-                #print x["sma10"]
+                #print (x["sma10"])
             elif feat == "StochOszi":
                 pass
             elif feat == "rsi":
+                print("\n========\nCalc RSI\n")
                 ret["rsi"] = self.rsi(closingPrice,14)
             elif feat == "cci":
                 pass
@@ -125,6 +126,10 @@ class indicators:
         '''
         print("calculating RSI{}:".format(numOfHistoryDays))
 
+        foo = 0
+
+        pbar = tqdm(total=len(x))
+
         #first calculate the AverageUp/down amount
         for i in range(1,len(x)):
             change = x[i]-x[i-1]
@@ -136,10 +141,15 @@ class indicators:
                 buffDo.append(0)
             else:
                 buffUp.append(0)
-                buffDo.append(change)
+                buffDo.append(-1 * change) #because the change needs to be absolute
 
             if len(buffUp) >= numOfHistoryDays:
                 N = len(buffUp)
+                if N <= 0:
+                    print("[ERROR] WHAT THE FUCK")
+                    N = 1
+                #print("[DBG] {}".format(buffUp))
+
                 avgUp = sum(buffUp)/N
                 avgDo = sum(buffDo)/N
 
@@ -147,12 +157,20 @@ class indicators:
                 RS =  avgUp/avgDo
 
                 #RSI
-                RSI = 1.0 - 1.0/(1+RS) #[0,1] range hence in precentage
+                RSI = 1.0 - 1.0/(1.0+RS) #[0,1] range hence in precentage
                 ret.append(RSI)
+
+                #now clear the first element of each buffer
+                buffUp.pop(0)
+                buffDo.pop(0)
+
+
             else:
                 #it takes t=t0+numOfHistoryDays+1 steps into the future to get the
                 #first valid value
                 ret.append(0.5)
+
+            pbar.update(1)
 
 
         return ret

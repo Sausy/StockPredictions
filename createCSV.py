@@ -86,8 +86,15 @@ def main():
 
     print("Sys INPUTFILE \t<{}>\nOUTPUT FILE: \t<{}>".format(inputFile,outputFile))
 
-    return
 
+
+
+    ###### IMPORTANT
+    print("\n\n======NEEDS CHECKING======")
+    print("The additional Feature class adds sin and cos ... ")
+    print("TODO: check if sin/cos per year acually starts with 01.01. 00:00:00")
+    ######
+    ######
 
     #===========================================================
     # PreProcessData
