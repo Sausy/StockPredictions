@@ -25,17 +25,17 @@ def main():
     import matplotlib.pyplot as plt
     import sys
 
-    if len(sys.argv) < 3:
-        print("usage: ./programm <inputFile> <OutputFile>")
-        print("will proceed with ./out.csv ./unneed.csv")
-        inputFile = "out.csv"
+    if len(sys.argv) < 2:
+        print("usage: ./programm <inputFile>")
+        print("will proceed with ./CSV/rdyCSV/rdy.csv")
+        inputFile = "./CSV/rdyCSV/rdy.csv"
         outputFile= "unneed.csv"
     else:
         inputFile = sys.argv[1]
-        outputFile= sys.argv[2]
+        outputFile= "unneed.csv"
 
     print("Sys INPUTFILE \t<{}>\nOUTPUT FILE: \t<{}>".format(inputFile,outputFile))
-
+    
 
 
     #===========================================================

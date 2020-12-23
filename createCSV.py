@@ -20,6 +20,8 @@ from preprocessing import preProcessRawData as prepro
 from preprocessing import StockIndicators as preStock
 #from plot2D import stockPlot as plt_modul
 
+from kraken import kraken
+
 class gdriverScrapper:
     def __init__(self):
         foo = 0
@@ -37,6 +39,7 @@ def main():
     import matplotlib.pyplot as plt
     import sys
 
+
     '''
     Big todo:
     the main of kaken.py needs to be included here
@@ -52,17 +55,38 @@ def main():
                     XBT-TO-EURO
     <none> ...      takes the all the csv files in ./CSV/rdyToTrainCsv and processes it
     '''
-    print("!!!!!! READ THE CoMMent \nkraken.py needs to be included here")
 
 
-    if len(sys.argv) < 3:
-        print("usage: ./programm <inputFile> <OutputFile>")
 
-    inputFile = sys.argv[1]
-    outputFile= sys.argv[2]
+    if len(sys.argv) < 4:
+        print("usage: ./programm <COINName> <secondCoinName> <timeValue> <parameters>")
+        print("example: ./programm XBT EUR 15min")
+        print("PARAMETER stuff not ready yet")
+        return
+
+    coin1 = sys.argv[1]
+    coin2 = sys.argv[2]
+    timeDelt = sys.argv[3]
+
+
+    #preprocess raw data from krakens gdrive dataset
+    webApi = kraken.kraken()
+    if webApi.processKrakenData(coin1,coin2):
+        print("[SUCESS] Raw Data was processed")
+    else:
+        print("[ERROR] error in processKraken Data ")
+        return
+
+    inputFile = "./CSV/cleanCSV/" + webApi.ApiTradeName + "_" + timeDelt  + ".csv"
+    outputFile = "./CSV/rdyCSV/" + "rdy.csv"
+
+
+    #inputFile = sys.argv[1]
+    #outputFile= sys.argv[2]
 
     print("Sys INPUTFILE \t<{}>\nOUTPUT FILE: \t<{}>".format(inputFile,outputFile))
 
+    return
 
 
     #===========================================================

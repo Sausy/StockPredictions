@@ -17,6 +17,8 @@ import json
 from datetime import datetime
 from tqdm import tqdm #progress bar
 
+import os
+
 class kraken:
     def __init__(self,currencySymbol="BTCUSD",api_start="0",api_end="9999999999",tradingFee=0.26):
         self.api_domain = "https://api.kraken.com"
@@ -29,6 +31,12 @@ class kraken:
         self.api_start = api_start #str(int(api_start) - 1) + "999999999"
         self.api_end = api_end
         self.tradingFee = tradingFee
+        self.isRaw = True
+
+        self.CHUNK_SIZE = 10000
+
+        #self.FileName = "./CSV/cleanCSV/XXBTZEUR_5m.csv"
+        self.ApiTradeName = "XXBTZEUR"
 
     def getBalance(self):
         pass
@@ -110,69 +118,109 @@ class kraken:
 
     def callBackTimeStamp(self,x):
         #Converts the UnixTimeStamp to datetimeFormat
-        ret = pd.to_datetime(x, unit='s')
+        self.isRaw = True
+        if "-" in x:
+            #print("Assuming DataFormat: 2020-07-01 00:00:00 ")
+            self.isRaw = False
+            ret = pd.to_datetime(x)
+        else:
+            #print("Assuming DataFormat: UnixTimeStamp")
+            ret = pd.to_datetime(x, unit='s')
+
         return ret
 
     def preProcessToOhlc(self,timeInterval,fileName="XXBTZEUR.csv",OutName="XXBTZEUR_5m.csv"):
-        self.CHUNK_SIZE=10000
+        #self.CHUNK_SIZE=10000
+        #self.CHUNK_SIZE=2
+
+        #timeInterval="10S"
+        #fileName = OutName
+        #OutName = "foo.csv"
+        barName = "processOHLC" + OutName
+        pbar = tqdm(desc=barName)
+
+
+
         print("processToOhlc\nDisclaimer: This might take a while\nFileName: {}".format(fileName))
         print("outFile: {}".format(OutName))
 
-        #dateparse = lambda x: datetime.strptime(x, '%d-%m-%Y %H:%M:%S')
 
-        columsDataFrame=[]
-        tempIndex=0
-        data_frame = pd.DataFrame()
-        #df_chunk = pd.read_csv(fileName, names=['Date','Price','Volume'],skiprows=range(0,1), index_col=0, parse_dates=True, date_parser=dateparse, chunksize=100000)
-        #df_chunk = pd.read_csv(fileName, skiprows=range(0,1), index_col=0,date_parser=self.callBackTimeStamp, chunksize=100000)
-        df_chunk = pd.read_csv(fileName, parse_dates=True, index_col=0, date_parser=self.callBackTimeStamp, chunksize=self.CHUNK_SIZE)
-        #df_chunk.set_index('Date')
+        '''
+        #to test out with a small dataset
+        dbg_df = pd.read_csv(fileName, parse_dates=True, index_col=0, date_parser=self.callBackTimeStamp)
+        #dbg_d = dbg_df["Price"].resample(timeInterval).ohlc()
+        dbg_d = dbg_df.resample(timeInterval).agg({'open':'first', 'high':'max','low':'min','close':'last'})
 
-        fs = open(OutName, 'w')
-        fs.close()
 
-        i = 0
-        for chunk in tqdm(df_chunk):
-            columsDataFrame=chunk.columns
-            resampled = pd.DataFrame()
-            #resampled = chunk.resample(timeInterval).ohlc()
-            resampled = chunk["Price"].resample(timeInterval).ohlc()
+        #Drop NaN rows
+        dbg_d = dbg_d.dropna()
+        print(dbg_d)
+
+        return
+        '''
+
+        #read in the csv file but with chunksize
+        df_chunk = pd.read_csv(fileName, parse_dates=True, index_col=0, date_parser=self.callBackTimeStamp, iterator=True, chunksize=self.CHUNK_SIZE)
+
+
+        print("\nTrying to detect if data format is raw:")
+        print("This is currently pretty limited")
+        print("The decission is made in the callback function from the timestamp")
+        print("and the only check that is done, is if a : is in the date I assume that")
+        print("its an already cleanCSV file ")
+
+        prevLastLine = pd.DataFrame()
+        initDone = False
+        while True:
+            try:
+                df = df_chunk.get_chunk(self.CHUNK_SIZE)
+            except:
+                print("end of file reached")
+                break
+
+
+            if self.isRaw == True:
+                resampled = df["Price"].resample(timeInterval).ohlc()
+            else:
+                resampled = df.resample(timeInterval).agg({'open':'first', 'high':'max','low':'min','close':'last'})
+
+            if initDone:
+                #df = prevLastLine.append(df)
+                resampled = pd.concat([prevLastLine,resampled])
+                resampled = resampled.resample(timeInterval).agg({'open':'first', 'high':'max','low':'min','close':'last'})
 
             #Drop NaN rows
             resampled = resampled.dropna()
 
-            resampled.to_csv(OutName, mode="a")
+            #save last line into a temp variable
+            prevLastLine = resampled.tail(1)
+            #drop last line
+            resampled.drop(resampled.tail(1).index,inplace=True)
 
-            '''
+            #in the first loop we want to clear the OutName file
+            #and write the labels in the first line
+            if initDone == False:
+                fs = open(OutName, 'w')
+                #gather the colum labels
+                firstCol = str(resampled.index.name)
+                for j in resampled.columns:
+                    firstCol += "," + j
 
-            if tempIndex==0:
-                data_frame = pd.DataFrame(resampled)
-            else:
-                data_frame = pd.concat([data_frame,resampled])
+                firstCol += "\n" #end the string with a chReturn
+                fs.write(firstCol)
+                fs.close()
 
+            resampled.to_csv(OutName, mode="a",header=False)
+            initDone = True
+            pbar.update(1)
 
-            tempIndex+=1
-            '''
-
-        return
-
-
-        #due to overlaying and there multiple data due to spliting data int chunks
-        #data needs to be hotfixed
-        hotFixData = data_frame.resample(timeInterval).agg({
-                                    'open':'first',
-                                    'high':'max',
-                                    'low':'min',
-                                    'close':'last'
-                                })
+        prevLastLine.to_csv(OutName, mode="a",header=False)
 
 
-        #hotFixData.to_csv(OutName,index=True,chunksize=self.CHUNK_SIZE)
-        hotFixData.to_csv(OutName,index=True)
 
 
     def processToOhlc(self,timeInterval,fileName="XXBTZEUR.csv",OutName="XXBTZEUR_5m.csv"):
-        self.CHUNK_SIZE=100000
+        #self.CHUNK_SIZE=100000
         print("processToOhlc\nDisclaimer: This might take a while\nFileName: {}".format(fileName))
         print("outFile: {}".format(OutName))
 
@@ -245,12 +293,126 @@ class kraken:
         f.close()
         f2.close()
 
+    def mergeFiles(self,csvList,outFile):
+        print("\n===========================================================")
+        print("Merge base Data with incremental Data")
+        print("Create clean File:")
+        fs = open(outFile, 'w')
+        fs.write("Date,Price,Volume\n")
+        fs.close()
+
+        print("write merged Files\n")
+        pbar = tqdm(desc="merge", position=1)
+
+        for f in csvList:
+            chunk_container = pd.read_csv(f, chunksize=self.CHUNK_SIZE)
+            for chunk in chunk_container:
+                #if the csv file has a header the following parameter
+                #"header=False ... needs to be added
+                pbar.update(1)
+                chunk.to_csv(outFile, mode="a", index=False, encoding='utf-8-sig')
+
+
+    def processKrakenData(self,CoinName="XBT",BaseName="EUR"):
+        #TOD: sellingFee 16% and buyingFee 26%
+        tradingFee = 0.26 #there is a selling and a buying fee
+
+        #TODO: must be replaced with find realName funktion from bublebuy
+        rawFile_base = "./kraken/" + CoinName + BaseName + "_base.csv"
+        rawFile_inc = "./kraken/" + CoinName + BaseName + "_inc.csv"
+        csvList = [rawFile_base,rawFile_inc]
+        FileName = "./CSV/rawCSV/" + CoinName + BaseName + ".csv"
+        ApiTradeName = "X" + CoinName + "Z" + BaseName
+        self.ApiTradeName = ApiTradeName
+
+        outPath = './CSV/cleanCSV/'
+
+        self.CHUNK_SIZE = 100000
+
+        #check if base and incremental data is available
+        if os.path.exists(rawFile_base) and os.path.exists(rawFile_inc):
+            print("Base files found")
+        else:
+            print("original File from Kraken not found")
+            print("please download the files from the Krakens gdrive")
+            print("name the base data: <coindouble>_base.csv")
+            print("name the incremental data: <coindouble>_inc.csv")
+
+            return False
+
+        #check if data is already merged
+        if os.path.exists(FileName):
+            print("\nMerged File found will proceed to create")
+            print("time discreed files 1minut 15minute 60minutes....")
+        else:
+            print("File needs merging")
+            self.mergeFiles(csvList,FileName)
+
+        print("\n=========================================================")
+        print("Preprocess OHLC")
+        timeInterval = "1min"
+        outFilePRE = outPath + ApiTradeName + "_" + timeInterval + ".csv"
+        if os.path.exists(outFilePRE) == False:
+            print("Start processing Data \t{}".format(timeInterval))
+            self.preProcessToOhlc(timeInterval, fileName=FileName,OutName=outFilePRE)
+
+
+        print("\n=========================================================")
+        timeInterval = "15min"
+        outFile = outPath + ApiTradeName + "_" + timeInterval + ".csv"
+        print("Start processing Data \t{}".format(timeInterval))
+        if os.path.exists(outFile) == False:
+            self.preProcessToOhlc(timeInterval, fileName=outFilePRE,OutName=outFile)
+        outFilePRE = outFile
+
+        print("\n=========================================================")
+        timeInterval = "60min"
+        outFile = outPath + ApiTradeName + "_" + timeInterval + ".csv"
+        print("Start processing Data \t{}".format(timeInterval))
+        if os.path.exists(outFile) == False:
+            self.preProcessToOhlc(timeInterval, fileName=outFilePRE,OutName=outFile)
+        outFilePRE = outFile
+
+
+        print("\n=========================================================")
+        timeInterval = "1D"
+        outFile = outPath + ApiTradeName + "_" + timeInterval + ".csv"
+        print("Start processing Data \t{}".format(timeInterval))
+        if os.path.exists(outFile) == False:
+            self.preProcessToOhlc(timeInterval, fileName=outFilePRE,OutName=outFile)
+        outFilePRE = outFile
+
+
+        print("\n=========================================================")
+        timeInterval = "3D"
+        outFile = outPath + ApiTradeName + "_" + timeInterval + ".csv"
+        print("Start processing Data \t{}".format(timeInterval))
+        if os.path.exists(outFile) == False:
+            self.preProcessToOhlc(timeInterval, fileName=outFilePRE,OutName=outFile)
+        outFilePRE = outFile
+
+
+        print("\n=========================================================")
+        timeInterval = "10D"
+        outFile = outPath + ApiTradeName + "_" + timeInterval + ".csv"
+        print("Start processing Data \t{}".format(timeInterval))
+        if os.path.exists(outFile) == False:
+            self.preProcessToOhlc(timeInterval, fileName=outFilePRE,OutName=outFile)
+
+
+        print("\n=====IMPORTANT==========\n")
+        print("https://support.kraken.com/hc/en-us/articles/201893638-How-trading-fees-work-on-Kraken")
+        print("ther are two fees one for buy and one for sell")
+        print("also there is a 30day dependencie on the fees")
+        print("if one would trade more than 50k within those 30days, the fee would drop")
+        #how to calc the fee value
+        #https://support.kraken.com/hc/en-us/articles/216784328-How-are-fee-conversion-rates-calculated-
+
+        return True
 
 
 
 def main():
-    import os
-
     #TOD: sellingFee 16% and buyingFee 26%
     tradingFee = 0.26 #there is a selling and a buying fee
     CoinName = "XBT"
@@ -289,8 +451,8 @@ def main():
             pbar.update(1)
             chunk.to_csv(rawFile, mode="a", index=False, encoding='utf-8-sig')
 
-
     '''
+
     FileName = rawFile#ApiTradeName + ".csv"
 
 
@@ -361,6 +523,14 @@ def main():
     outFilePRE = outPath + ApiTradeName + "_" + timeInterval + ".csv"
     print("Start processing Data \t{}".format(timeInterval))
     webApi.preProcessToOhlc(timeInterval, fileName=FileName,OutName=outFilePRE)
+
+
+    print("\n=========================================================")
+    timeInterval = "15min"
+    outFile = outPath + ApiTradeName + "_" + timeInterval + ".csv"
+    print("Start processing Data \t{}".format(timeInterval))
+
+    webApi.preProcessToOhlc(timeInterval, fileName=outFilePRE,OutName=outFile)
 
     return
 
