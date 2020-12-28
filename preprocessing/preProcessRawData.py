@@ -226,7 +226,7 @@ class preprocessing:
         print("Y init with X data but t+1 shift:")
         #print("\nPrint Y:")
         try:
-            y = x[LabelList][1+self.ticksIntoFuture:]
+            y = x[LabelList][self.ticksIntoFuture:]
         except:
             sys.exit('In this stage of the computation "Date" should still be in X')
 
