@@ -11,25 +11,45 @@ import numpy as np
 class preTools:
     def __init__(self):
         print("[preTools]")
+        #polynom var
+        self.p = []
+
+        self.callBackFunc = self.normalizeUpscale
+
+    def upscaleData(self,x):
+        self.callBackFunc(x)
 
     def normalize(self,x):
         return self.minmax(x,0,1)
 
+    def normalizeUpscale(self,x):
+        #callback function to upscale data again
+        pass
+
     def minmax(self, x, minVal, maxVal):
         print("MinMax Scaling between [{},{}]".format(minVal,maxVal))
-        if np.amin(x) == np.amax(x) :
+        min = np.amin(x)
+        max = np.amax(x)
+        if min == max :
             print("error min = max")
             return 0
 
-        a = (x - np.amin(x)) * (maxVal - minVal)
-        b = np.amax(x) - np.amin(x)
+        divVal = maxVal - minVal
+        a = (x - min) * (divVal)
+        b = max - min
+        retMatrix = minVal + a/b
 
         #to rescale the data back up
-        retMatrix = minVal + a/b
-        retK = b/(maxVal - minVal)
-        retD = np.amin(x)
+        # (ret-minVal) * (max(x) - min(x))/(maxVal - minVal) + min(x)
+        #to represent it as a poly
+        # p = ret * (max(x) - min(x))/(maxVal - minVal) + [(max(x) - min(x)) * (-minVal)/(maxVal - minVal) +  min(x) ]
+        p0 = (max - min) * (-1 * minVal)/(maxVal - minVal) +  min
+        p1 = (max - min)/(maxVal - minVal)
+
+        self.p = [p0,p1] #its only a liear equation
+        self.callBackFunc = self.normalizeUpscale
         
-        return [retMatrix, retK, retD]
+        return retMatrix
 
     def standardize(self, x):
         a = np.average(x)

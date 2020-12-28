@@ -20,8 +20,11 @@ import copy
 
 import pandas as pd
 
+import os
+import glob #to get files with wildcard
+
 class stockPlot:
-    def __init__(self,StockData,debug=False):
+    def __init__(self,debug=False):
         self.debug = debug
 
 
@@ -64,10 +67,17 @@ class stockPlot:
                 low=data['low'],
                 close=data['close'])])
 
+        #ps count e.g. 15min .... we want to observe 7days
+        #count=  7days * 24hr * 60min = 10080
         fig_.update_xaxes(
         rangeslider_visible=True,
             rangeselector=dict(
                 buttons=list([
+                    dict(count=4320, label="1min", step="minute", stepmode="backward"),
+                    dict(count=4320, label="15min", step="minute", stepmode="backward"),
+                    dict(count=4320, label="60min", step="minute", stepmode="backward"),
+                    dict(count=168, label="1hour", step="hour", stepmode="backward"),
+                    dict(count=20, label="1day", step="day", stepmode="backward"),
                     dict(count=1, label="1m", step="month", stepmode="backward"),
                     dict(count=6, label="6m", step="month", stepmode="backward"),
                     dict(count=1, label="YTD", step="year", stepmode="todate"),
@@ -117,6 +127,8 @@ class stockPlot:
         layoutBuffer.append(temp)
         self.app.layout = html.Div(layoutBuffer)
 
+    def includeLinGraphToCandle(self):
+        pass
 
     #===========================================================
     def dbgPrint(self,outData):
@@ -138,7 +150,28 @@ class stockPlot:
 #==============================================================
 def main():
     print('=============\nSandbox: stockPlot.py')
-    app.run_server(debug=True)
+    splt = stockPlot()
+
+    basePath = "../CSV/"
+    rdyCSV = basePath + "rdyCSV/"
+    listPredictedCsv = glob.glob(rdyCSV + "predicted*.csv")
+    listEvalCsv = glob.glob(rdyCSV + "eval*.csv")
+    #if it needs to be more complicated
+    #files = [f for f in os.listdir(rdyCSV) if re.match(r'[0-9]+.*\.csv', f)]
+
+    candlData = ['date','open','high','low']
+
+    for pred in listPredictedCsv:
+        df = pd.read_csv(pred)
+        splt.addCandle(df, str(pred))
+
+    for ev in listEvalCsv:
+        df = pd.read_csv(ev)
+        splt.addCandle(df, str(ev))
+
+
+
+    splt.plotNow()
 
 if __name__ == "__main__":
     main()

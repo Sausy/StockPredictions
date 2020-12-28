@@ -36,7 +36,7 @@ class modelLtsm(tf.keras.Model):
         print(outputShape)
 
 
-        self.UnitCountHiddenLayer1 = int(self.AmountParallelSeries*1.6) #int(self.AmountFeatures*1.6)
+        self.UnitCountHiddenLayer1 = int(self.AmountParallelSeries*1.8) #int(self.AmountFeatures*1.6)
 
         print("UnitCountHiddenLayer1: {}\n==============".format(self.UnitCountHiddenLayer1))
 
@@ -51,13 +51,20 @@ class modelLtsm(tf.keras.Model):
         #self.conv = tf.keras.layers.Conv2D(10, self.AmountFeatures, activation='tanh', input_shape=input_shape[1:])
         self.bn = tf.keras.layers.BatchNormalization()
 
-        self.l2 = tf.keras.layers.LSTM(self.UnitCountHiddenLayer1, activation='tanh')
-        self.dropout2 = tf.keras.layers.Dropout(0.2)
+        #self.l2 = tf.keras.layers.LSTM(self.UnitCountHiddenLayer1, activation='tanh')
+        self.l21 = tf.keras.layers.Dense(int(self.UnitCountHiddenLayer1*1.6), activation='tanh')
+        self.dropout21 = tf.keras.layers.Dropout(0.2)
+
+        self.l22 = tf.keras.layers.Dense(int(self.UnitCountHiddenLayer1*1.6), activation='tanh')
+        self.dropout22 = tf.keras.layers.Dropout(0.2)
+
+        self.l23 = tf.keras.layers.Dense(int(self.UnitCountHiddenLayer1*1.6), activation='tanh')
+        self.dropout23 = tf.keras.layers.Dropout(0.2)
 
 
 
-        #self.l3 = tf.keras.layers.Dense(self.AmountFeatures+5, activation='relu')
-        self.l3 = tf.keras.layers.Dense(self.UnitCountHiddenLayer1, activation='relu')
+        #self.l3 = tf.keras.layers.Dense(self.AmountFeatures+5, activation='tanh')
+        self.l3 = tf.keras.layers.Dense(self.UnitCountHiddenLayer1, activation='tanh')
         self.dropout3 = tf.keras.layers.Dropout(0.2)
 
         #self.l3 = tf.keras.layers.Dense(100, activation='sigmoid')
@@ -75,18 +82,27 @@ class modelLtsm(tf.keras.Model):
 
         #x = self.lin(inputs)
         x = self.l1(inputs)
-        #if training:
-        #    x = self.dropout(x, training=training)
-        #x = self.bn(x, training=training)
-        #x = self.l2(x)
+        if training:
+            x = self.dropout(x, training=training)
+            #x = self.bn(x, training=training)
 
-        #if training:
-        #    x = self.dropout2(x, training=training)
+        x = self.l21(x)
+        if training:
+            x = self.dropout21(x, training=training)
+
+        x = self.l22(x)
+        if training:
+            x = self.dropout22(x, training=training)
+
+        x = self.l23(x)
+        if training:
+            x = self.dropout23(x, training=training)
+
         #x = self.bn(x)
         x = self.l3(x)
 
-        #if training:
-        #    x = self.dropout3(x, training=training)
+        if training:
+            x = self.dropout3(x, training=training)
         #x = self.l4(x)
         #x = self.l4(x)
 

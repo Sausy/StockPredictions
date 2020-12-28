@@ -8,7 +8,7 @@ It would only work with python3.6
 ```
 conda create -n tf-gpu tensorflow-gpu python3.6
 conda activate tf-gpu
-pip install sklearn plotly dash matplotlib tqdm pandas
+pip install sklearn plotly dash matplotlib tqdm pandas numpy
 ```
 
 ## hotfix tqdm

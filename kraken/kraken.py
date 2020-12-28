@@ -116,6 +116,8 @@ class kraken:
 
         fs.close()
 
+
+
     def callBackTimeStamp(self,x):
         #Converts the UnixTimeStamp to datetimeFormat
         self.isRaw = True
@@ -129,8 +131,10 @@ class kraken:
 
         return ret
 
+
     def preProcessToOhlc(self,timeInterval,fileName="XXBTZEUR.csv",OutName="XXBTZEUR_5m.csv"):
-        #self.CHUNK_SIZE=10000
+        #self.CHUNK_SIZE=20
+        #self.CHUNK_SIZE = 10000
         #self.CHUNK_SIZE=2
 
         #timeInterval="10S"
@@ -241,6 +245,111 @@ class kraken:
 
         ret.to_csv(OutName,index=True)
 
+    def cutAwayTailOfCsv(self,fileName1="XBTEUR_base.csv",OutName2="XBTEUR_inc.csv"):
+        last = ""
+        with open(fileName1, "r") as f:
+            for last in f:
+                pass
+
+        print("\nLastRow: \t{}".format(last))
+        splitData = last.split(",")
+        pTime = int(splitData[0])
+
+        print("\nTime of baseFile: \t{} \t{}".format(splitData[0],pTime))
+        print("\nNow we need to strip away the overlaying data ")
+
+        with open(OutName2, "r") as f:
+            linbuffer = f.readlines()
+
+        print("Size and stuff {}\t{}".format(type(linbuffer),len(linbuffer)))
+        f.close()
+
+        with open(OutName2, "w") as f:
+            for line in linbuffer:
+                splitData = line.split(",")
+                incTime = int(splitData[0])
+                #print(incTime)
+                if incTime > pTime:
+                    f.write(line)
+                if incTime == pTime:
+                    print("We found the overlay position")
+                '''
+                try:
+                    incTime = int(splitData[0])
+                    if incTime > pTime:
+                        f.write(line)
+
+                    if incTime == pTime:
+                        print("We found the overlay position")
+                except:
+                    print("Error while processing")
+                '''
+
+        f.close()
+
+
+    def delteRowsBeforTime(self,startingTime,FileName,OutFile):
+        #and tm_yday=1 because it was the first day of the year
+        startingDay = 0
+        if startingTime == 2016:
+            startingDay = 4 #because it was a friday
+        elif startingTime == 2017:
+            startingDay = 6 #because it was a sunday
+        else:
+            print("[WARNING] this should be looked up")
+            print("nvm starting day doesn't make a diverence")
+
+        startTime_ = (startingTime, 1, 1, 1, 0, 0, startingDay, 1, -1)
+        #at one o'clock because the kraken api somehow has a one hour shift
+
+        #time needs to be converted into unix timestamp format
+        startTime = int(time.mktime(startTime_))
+        endTime = int(time.time())
+
+        print(startTime)
+        print(endTime)
+        print("pull InitTime: \t{}".format(time.ctime(startTime)))
+        print("pull EndTime: \t{}".format(time.ctime(endTime)))
+
+        print("\nDisclaimer this might take a while, because the csv need to be searched")
+
+        with open(FileName, "r") as f:
+            linbuffer = f.readlines()
+        f.close()
+
+        pbar = tqdm(desc="find rows")
+
+        #TODO: THiS SHIT TAKES WAAAYYY TO LOONG
+        lastWasFound = False
+        #dbg_offset = 0
+        with open(OutFile, "w") as f:
+            for line in linbuffer:
+                if lastWasFound == False:
+                    splitData = line.split(",")
+                    incTime = str(splitData[0])
+                    try:
+                        incTime = pd.to_datetime([incTime])
+                        incTime = (incTime - pd.Timestamp("1970-01-01")) // pd.Timedelta('1s')
+                        #incTime = pd.to_datetime([incTime]).astype(int) / 10**9
+                        #print(incTime)
+                        if incTime >= startTime:
+                            f.write(line)
+                            lastWasFound = True
+                        if incTime == startTime:
+                            print("We found the overlay position")
+                            lastWasFound = True
+                    except:
+                        print("couldn't convert to unix timestamp")
+                        print(splitData)
+                        f.write(line)
+                else:
+                    f.write(line)
+
+                pbar.update(1)
+
+
+        print("Saving File")
+        f.close()
 
 
     def resetStartTime_viaCSV(self,fileName):
@@ -305,6 +414,11 @@ class kraken:
         pbar = tqdm(desc="merge", position=1)
 
         for f in csvList:
+            if os.path.getsize(f) == 0:
+                print("File: {} \t is NOT big enough".format(f))
+                continue
+            else:
+                print("File: {} \t is big enough".format(f))
             chunk_container = pd.read_csv(f, chunksize=self.CHUNK_SIZE)
             for chunk in chunk_container:
                 #if the csv file has a header the following parameter
@@ -318,8 +432,10 @@ class kraken:
         tradingFee = 0.26 #there is a selling and a buying fee
 
         #TODO: must be replaced with find realName funktion from bublebuy
-        rawFile_base = "./kraken/" + CoinName + BaseName + "_base.csv"
-        rawFile_inc = "./kraken/" + CoinName + BaseName + "_inc.csv"
+        #rawFile_base = "./kraken/" + CoinName + BaseName + "_base.csv"
+        #rawFile_inc = "./kraken/" + CoinName + BaseName + "_inc.csv"
+        rawFile_base = "./CSV/rawCSV/" + CoinName + BaseName + "_base.csv"
+        rawFile_inc = "./CSV/rawCSV/" + CoinName + BaseName + "_inc.csv"
         csvList = [rawFile_base,rawFile_inc]
         FileName = "./CSV/rawCSV/" + CoinName + BaseName + ".csv"
         ApiTradeName = "X" + CoinName + "Z" + BaseName
@@ -340,6 +456,19 @@ class kraken:
 
             return False
 
+        #downlaod the missing incremental data
+        #starting from the last entery of the csv file
+        #till now
+        #TODO: this still needs to be done ....
+
+        #To prevent overlaping times from base and incremental data
+        #the incremental data needs to be checked and if necesary trimmed
+        self.cutAwayTailOfCsv(rawFile_base,rawFile_inc)
+
+        #Now we need to pull the most recent data from kraken public api
+        #self.grabHistoryIntoCSV()
+
+
         #check if data is already merged
         if os.path.exists(FileName):
             print("\nMerged File found will proceed to create")
@@ -348,13 +477,31 @@ class kraken:
             print("File needs merging")
             self.mergeFiles(csvList,FileName)
 
+
+
         print("\n=========================================================")
         print("Preprocess OHLC")
         timeInterval = "1min"
-        outFilePRE = outPath + ApiTradeName + "_" + timeInterval + ".csv"
-        if os.path.exists(outFilePRE) == False:
+        outFile = outPath + ApiTradeName + "_" + timeInterval + "RAW.csv"
+        if os.path.exists(outFile) == False:
             print("Start processing Data \t{}".format(timeInterval))
-            self.preProcessToOhlc(timeInterval, fileName=FileName,OutName=outFilePRE)
+            self.preProcessToOhlc(timeInterval, fileName=FileName,OutName=outFile)
+        outFilePRE = outFile
+
+        print("\n=========================================================")
+        print("Cut away everthing bevor 2016")
+        timeInterval = "1min"
+        outFile = outPath + ApiTradeName + "_" + timeInterval + ".csv"
+
+        if os.path.exists(outFile) == False:
+            print("Start processing Data \t{}".format(timeInterval))
+            self.delteRowsBeforTime(2016,outFilePRE,outFile)
+
+        #self.delteRowsBeforTime(2016,outFilePRE,outFile)
+
+        outFilePRE = outFile
+
+
 
 
         print("\n=========================================================")
@@ -413,6 +560,25 @@ class kraken:
 
 
 def main():
+    k = kraken()
+
+    FileName = "test.csv"
+    tmpFile = "tmp.csv"
+    outFilePRE = 'out.csv'
+
+    fs = open(tmpFile, 'w')
+    fs.write("Date,Price,Volume\n")
+    fs.close()
+
+    fs = open(tmpFile, 'a')
+    fs_csv = open(FileName, 'r')
+    fs.write(fs_csv.read())
+    fs_csv.close()
+    fs.close()
+
+    k.preProcessToOhlc('15min', fileName=tmpFile,OutName=outFilePRE)
+
+    return
     #TOD: sellingFee 16% and buyingFee 26%
     tradingFee = 0.26 #there is a selling and a buying fee
     CoinName = "XBT"

@@ -11,6 +11,8 @@ import datetime
 
 import pandas as pd
 
+import sklearn.preprocessing as pp
+
 #import ../CSV/invert
 
 if __name__ == "__main__":
@@ -30,8 +32,9 @@ class preprocessing:
 
         self.method=scaling
 
-        self.rescale_K = {}
-        self.rescale_D = {}
+        #lets define the default scaler
+        self.scaler = pp.MinMaxScaler(feature_range=(0,1),copy=True)
+
 
     #===========================================================
     def dbgPrint(self,outData):
@@ -189,19 +192,22 @@ class preprocessing:
 
 
     #===========================================================
-    def genForcastY(self,x,LabelList=["Open","High","Close"],featureList=["Open","High","Close"],includeAllFuturDays=False):
+    def genForcastY(self,x,LabelList=["Open","High","Close"]): #,featureList=["Open","High","Close"]
         #get rid of case sensitvity
         labelS = pd.Series(LabelList)
         labelListLower = labelS.str.lower()
         LabelList = labelListLower.values
 
+
+
         #get rid of case sensitvity
-        featureS = pd.Series(LabelList)
-        featureListLower = featureS.str.lower()
-        featureList = featureListLower.values
+        #featureS = pd.Series(featureList)
+        #featureListLower = featureS.str.lower()
+        #featureList = featureListLower.values
 
         #====== Get Time Shifted DATA ====
-        print("\n==============\ngenerate timeshifted Y outputs\n")
+        print("\n==========================")
+        print("generate timeshifted Y outputs")
         #print(len(LabelList))
         deltaT = self.ticksIntoPast + self.ticksIntoFuture
 
@@ -209,41 +215,68 @@ class preprocessing:
             print("ERROR ticksIntoFuture must be greater than 0")
             self.ticksIntoFuture = 1
 
+
+
+        #y shall include Date for fute identification
+        LabelList = np.append(["date"],LabelList)
+        print(LabelList)
+        #LabelList.append("date")
+
+        print("\n==========================")
+        print("Y init with X data but t+1 shift:")
+        #print("\nPrint Y:")
+        try:
+            y = x[LabelList][1+self.ticksIntoFuture:]
+        except:
+            sys.exit('In this stage of the computation "Date" should still be in X')
+
+        #print(y)
+        #y = x[LabelList][1:].values
+
+
+        #print("\n==============\nY one tick ahead\n")
+        #print(y)
+        '''
         yLength = x.shape[0] - 1
         print("yLength..{}".format(yLength))
 
-        print("\n==============\nY init with X data but t+1 shift\n")
-        y = x[LabelList][1:].values
-        #print("\n==============\nY one tick ahead\n")
-        #print(y)
 
         if self.ticksIntoFuture > 1:
             for i in range(self.ticksIntoFuture-1): # -1 because y_init has already one shift
                 yLength = yLength - 1
-                y = np.append(y[:yLength],y[1:(yLength+1)],axis=1)
+                #y = np.append(y[:yLength],y[1:(yLength+1)],axis=1)
+                yBuff = copy.deepcopy(y[LabelList][:yLength])
+                yBuff.append(y[LabelList][1:(yLength+1)],axis=1)
+        '''
 
-        #print("\n==============\nY loop\n")
+        #print("\n==========================")
+        #print("Y print all generated Future Data")
         #print(y)
 
                 #y = y[:yLength]
 
-        print("\n==============\nOptional:\nInclude all t+n events as additional label")
-        print("or only [t+{}] feature".format(self.ticksIntoFuture))
-        print("[OptionalFeature]: {}".format(includeAllFuturDays))
+        #print("\n==============\nOptional:\nInclude all t+n events as additional label")
+        #print("or only [t+{}] feature".format(self.ticksIntoFuture))
+        #print("[OptionalFeature]: {}".format(includeAllFuturDays))
 
-        if includeAllFuturDays == False:
-            y = y[:,y.shape[1]-len(LabelList):]
+        #if includeAllFuturDays == False:
+        #    y = y[:,y.shape[1]-len(LabelList):]
 
 
-        print("\n==============\nResulting Y based on time shifted X\n")
-        print(y)
+        #print("\n==============\nResulting Y based on time shifted X\n")
+        #print(y)
 
         #Reduction of X is necesary, because
         #Y(t) = X(t+ticksIntoFuture)
-        print("\n\nreduction of X...\nbecause Y(t) = X(t+ticksIntoFuture)\n")
-        x = x[featureList][:y.shape[0]].values
-        print("Size of x {}".format(x.shape))
+        print("\n\n++++++++++++++++\nreduction of X...\nbecause Y(t) = X(t+ticksIntoFuture)\n")
         #print(x)
+        #x = x[:][:y.shape[0]].values
+        x = x[:][:y.shape[0]]
+
+        print("Size of x {}".format(x.shape))
+        #print("Print reduzed X:\n")
+        #print(x)
+
 
 
         return [x,y]
@@ -256,25 +289,42 @@ class preprocessing:
         print(x.columns)
         tool = preTools()
 
-        self.rescale_K = {}
-        self.rescale_D = {}
-
         #to remove the case sensitvity
         featS = pd.Series(featList)
         featListLower = featS.str.lower()
 
         self.upScaleList = featListLower.values
 
+        #we used normalize as min max scaling and
+        #standardize normalization with a mean of 0 and var of 1
+        #sklearn seems to call it different ....
+        if method == 'normalize':
+            self.scaler = pp.MinMaxScaler(feature_range=(0,1),copy=True)
+        elif method == 'standardize':
+            self.scaler = pp.Normalizer(norm='l2',copy=True) #l1,l2,max
+        else:
+            self.scaler = pp.StandardScaler()
+
+        ret = copy.deepcopy(x)
+        ret[self.upScaleList] = self.scaler.fit_transform(x[self.upScaleList])
+
+        #foo = ret['open'].values
+        #print("[DBG] {}".format(np.amax(foo)))
+
+
+
+        '''
         for feat in featListLower.values:
             print("\nScale feature: \t{}".format(feat))
 
             num_data = x[feat].to_numpy()
 
             if method == 'normalize':
-                [x[feat],self.rescale_K[feat],self.rescale_D[feat]] = tool.normalize(num_data)
+                x[feat] = tool.normalize(num_data)
             else:
-                [x[feat],self.rescale_K[feat],self.rescale_D[feat]]  = tool.standardize(num_data)
+                x[feat]  = tool.standardize(num_data)
 
+        '''
 
         '''
         print(data)
@@ -294,19 +344,62 @@ class preprocessing:
         x = pd.DataFrame(data,columns=col)
         print(x)
         '''
-        return x
+        return ret
 
     #===========================================================
-    def upscaleData(self,x):
-        xBuffer = copy.deepcopy(x)
+    def upscaleData(self,x,xNonTrain):
+        #xBuffer = copy.deepcopy(x)
+        colList = xNonTrain.columns
+        colList = colList.tolist()
         ret = copy.deepcopy(x)
 
+        WorkAroundBugFixFlag = False
+
+        if x.shape[1] != len(self.upScaleList):
+            WorkAroundBugFixFlag = True
+
+            print("[WARNING] UPSCALE Data not the same amount of Labels ")
+            print("[       ] as for the time it was downscaled")
+
+            print("\nIST list \n{}".format(colList))
+            print("SOLL list \n{}\n".format(self.upScaleList))
+
+            colList.remove('date')
+            ret = pd.DataFrame(ret,columns=colList)
+            listRequ = self.upScaleList.tolist()
+
+
+            listRequ = set(colList) ^ set(listRequ)
+            print("This means the following labels are missing")
+            print(listRequ)
+
+            for i in listRequ:
+                ret[i] = np.zeros(ret.shape[0])
+
+
+
+        else:
+            ret = pd.DataFrame(ret,columns=self.upScaleList)
+
+
+
+
+        ret = ret[self.upScaleList] #pd.DataFrame(ret,columns=self.upScaleList)
+
+        #self.upScaleList was set in scaling function
+        ret[self.upScaleList] = self.scaler.inverse_transform(ret[self.upScaleList])
+
+        '''
         for feat in self.upScaleList:
             if self.method == 'normalize':
                 ret[feat] = xBuffer[feat] * self.rescale_K[feat] + self.rescale_D[feat]
             else:
                 print("==========\nTODO: till now only normalize upscale Available")
                 pass
+        '''
+
+        if WorkAroundBugFixFlag:
+            ret = ret[colList]
 
         return ret
 
@@ -452,7 +545,7 @@ def main():
     #because oure model needs knowlege into the past
     #it needs to be defined what features shall be "time shifted"
     LabelList = ["Open","High","Low","Close"]
-    [data,y] = pp.genForcastY(data, LabelList=LabelList, includeAllFuturDays=False)
+    [data,y] = pp.genForcastY(data, LabelList=LabelList) #, includeAllFuturDays=False
     print(data)
     [data,y] = pp.genTimeSeries(data,y)
 
