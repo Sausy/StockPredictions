@@ -289,6 +289,11 @@ class kraken:
 
 
     def delteRowsBeforTime(self,startingTime,FileName,OutFile):
+        #####
+        # to make it way more efficent
+        # just use
+        # res = df[~(df['date'] < '2018-04-01')]
+        ####
         #and tm_yday=1 because it was the first day of the year
         startingDay = 0
         if startingTime == 2016:
@@ -419,12 +424,14 @@ class kraken:
                 continue
             else:
                 print("File: {} \t is big enough".format(f))
+            #prefix is needed because there is no header column yet
             chunk_container = pd.read_csv(f, chunksize=self.CHUNK_SIZE)
             for chunk in chunk_container:
                 #if the csv file has a header the following parameter
                 #"header=False ... needs to be added
                 pbar.update(1)
-                chunk.to_csv(outFile, mode="a", index=False, encoding='utf-8-sig')
+                #header=False to not write the generic R headers to the file
+                chunk.to_csv(outFile, mode="a", header=False, index=False, encoding='utf-8-sig')
 
 
     def processKrakenData(self,CoinName="XBT",BaseName="EUR"):
@@ -519,6 +526,14 @@ class kraken:
         if os.path.exists(outFile) == False:
             self.preProcessToOhlc(timeInterval, fileName=outFilePRE,OutName=outFile)
         outFilePRE = outFile
+
+        print("\n=========================================================")
+        timeInterval = "180min"
+        outFile = outPath + ApiTradeName + "_" + timeInterval + ".csv"
+        print("Start processing Data \t{}".format(timeInterval))
+        if os.path.exists(outFile) == False:
+            self.preProcessToOhlc(timeInterval, fileName=outFilePRE,OutName=outFile)
+        #outFilePRE = outFile
 
 
         print("\n=========================================================")

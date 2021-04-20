@@ -51,6 +51,20 @@ class indicators:
         print("be awaire due to the nature of tech indicators")
         print("some indicators only be valid after 10time ticks (sma10) or even 100")
 
+    def getStockFeatures(self,x,featureList):
+        #if features are already present
+        #they need to be removed
+        if (set(x.columns) & set(featureList)) != set():
+            x = x[set(x.columns) ^ set(featureList)]
+
+        colList = x.columns
+        ret = self.addStockFeatures(x,featureList)
+        allCol = ret.columns
+
+        retList = set(colList) ^ set(allCol)
+
+        return ret[retList]
+
 
     def addStockFeatures(self,x,featureList):
         #add technical indicators
@@ -153,6 +167,8 @@ class indicators:
                 avgUp = sum(buffUp)/N
                 avgDo = sum(buffDo)/N
 
+                if avgDo == 0.0:
+                    avgDo = 0.0001
                 #calculate the relativ strength
                 RS =  avgUp/avgDo
 

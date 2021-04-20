@@ -86,6 +86,24 @@ class preprocessing:
         return data
 
 
+    #===========================================================
+    def getTimeFeatures(self,x,featureList):
+        #if features are already present
+        #they need to be removed
+        if (set(x.columns) & set(featureList)) != set():
+            x = x[set(x.columns) ^ set(featureList)]
+
+        colList = x.columns
+
+        print("\nin features X:")
+        print(x)
+
+        ret = self.addTimeFeatures(x,featureList)
+        allCol = ret.columns
+
+        retList = set(colList) ^ set(allCol)
+
+        return ret[retList]
 
     #===========================================================
     def addTimeFeatures(self,x,featureList):
@@ -96,13 +114,18 @@ class preprocessing:
         #DaySin   #DayCos   #WeekSin     #WeekCos
         #YearSin   #YearCos
 
+        listFeatauresAdded = []
+
         try:
             databuffer = x["Date"].values
         except:
-            self.dbgPrint("There is no Date Colum")
-            self.dbgPrint("!!!! The function addTimeFeatures")
-            self.dbgPrint("requires a Column called \'Date\'")
-            return 0
+            try:
+                databuffer = x.index
+            except:
+                self.dbgPrint("There is no Date Colum")
+                self.dbgPrint("!!!! The function addTimeFeatures")
+                self.dbgPrint("requires a Column called \'Date\'")
+                return 0
 
         #figure out if the format is already known
         try:
@@ -192,11 +215,13 @@ class preprocessing:
 
 
     #===========================================================
-    def genForcastY(self,x,LabelList=["Open","High","Close"]): #,featureList=["Open","High","Close"]
+    def genForcastY(self,inData,LabelList=["Open","High","Close"]): #,featureList=["Open","High","Close"]
         #get rid of case sensitvity
         labelS = pd.Series(LabelList)
         labelListLower = labelS.str.lower()
         LabelList = labelListLower.values
+
+        x = copy.deepcopy(inData)
 
 
 
@@ -217,19 +242,30 @@ class preprocessing:
 
 
 
-        #y shall include Date for fute identification
-        LabelList = np.append(["date"],LabelList)
-        print(LabelList)
-        #LabelList.append("date")
+        #y shall include Date for future identification
+        LabelList_withdate = np.append(["date"],LabelList)
+        print(LabelList_withdate)
 
         print("\n==========================")
         print("Y init with X data but t+1 shift:")
         #print("\nPrint Y:")
+        lenX = x.shape[0]
         try:
-            y = x[LabelList][self.ticksIntoFuture:]
+            y = x[LabelList_withdate][1:lenX-self.ticksIntoFuture+1]
+            y = y.reset_index(drop=True)
+            for i in range(1,self.ticksIntoFuture):
+                yTemp = x[LabelList][i+1:] #here we don't want the date
+                #yTemp.columns = [str(yTemp) + '_' + str(i+1) for col in yTemp.columns] # add suffix
+                yTemp = yTemp.add_suffix('_'+str(i+1))
+                yTemp = yTemp.reset_index(drop=True)
+                #print(yTemp)
+                #y = y[:][1:]
+                y = y.join(yTemp)
+
         except:
             sys.exit('In this stage of the computation "Date" should still be in X')
 
+        print(y)
         #print(y)
         #y = x[LabelList][1:].values
 
@@ -274,6 +310,7 @@ class preprocessing:
         x = x[:][:y.shape[0]]
 
         print("Size of x {}".format(x.shape))
+        print("Size of y {}".format(y.shape))
         #print("Print reduzed X:\n")
         #print(x)
 
@@ -302,6 +339,8 @@ class preprocessing:
             self.scaler = pp.MinMaxScaler(feature_range=(0,1),copy=True)
         elif method == 'standardize':
             self.scaler = pp.Normalizer(norm='l2',copy=True) #l1,l2,max
+        #elif method == 'log':
+        #    self.scaler = pp.Normalizer(norm='l2',copy=True) #l1,l2,max
         else:
             self.scaler = pp.StandardScaler()
 
@@ -347,6 +386,35 @@ class preprocessing:
         return ret
 
     #===========================================================
+    def upscaleMultiData(self,x,xNonTrain):
+        dataBufferCnt = 0
+        ret = pd.DataFrame()
+        xLen = x.shape[0]
+        for column in xNonTrain:
+            if column == 'date':
+                dateBuffer = xNonTrain['date'].values
+                dateLen = dateBuffer.shape[0]
+                ret['date'] = xNonTrain['date'].values[dateLen-xLen:]
+                continue
+
+            nameBuffer = pd.DataFrame()
+            colName = column.split("_")
+            colName = colName[0]
+
+            nameBuffer[colName] = xNonTrain[column]
+
+            upBuffer = x[:,dataBufferCnt]
+
+            upBuffer = np.reshape(upBuffer,(len(upBuffer),1)) #make vector from array
+
+            yUpScaledRealBuffer = self.upscaleData(upBuffer,nameBuffer)
+
+            ret[column] =yUpScaledRealBuffer
+
+            dataBufferCnt += 1
+
+        return ret
+
     def upscaleData(self,x,xNonTrain):
         #xBuffer = copy.deepcopy(x)
         colList = xNonTrain.columns
@@ -364,11 +432,15 @@ class preprocessing:
             print("\nIST list \n{}".format(colList))
             print("SOLL list \n{}\n".format(self.upScaleList))
 
-            colList.remove('date')
+            try:
+                colList.remove('date')
+            except:
+                print("doesn't seem to have a Date column")
             ret = pd.DataFrame(ret,columns=colList)
+            #print("now get it as a list")
             listRequ = self.upScaleList.tolist()
 
-
+            print("XOR bothe lists")
             listRequ = set(colList) ^ set(listRequ)
             print("This means the following labels are missing")
             print(listRequ)

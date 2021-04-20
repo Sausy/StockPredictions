@@ -4,6 +4,7 @@
 Created on Thu Dez  28 10:20:41 2020
 
 @author: sausy
+https://medium.com/emergent-future/simple-reinforcement-learning-with-tensorflow-part-0-q-learning-with-tables-and-neural-networks-d195264329d0
 """
 
 import numpy as np
